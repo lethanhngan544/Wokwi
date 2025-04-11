@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "author": "Ngân Lê Thành",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": -16.8,
+      "left": -132.6,
+      "attrs": { "volume": "0.1", "mode": "accurate" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz2",
+      "top": -16.8,
+      "left": -65.4,
+      "attrs": { "volume": "0.1", "mode": "accurate" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "bz1:1", "esp:GND.1", "green", [ "v0" ] ],
+    [ "bz1:2", "esp:26", "green", [ "v0" ] ],
+    [ "bz2:2", "esp:25", "green", [ "v0" ] ],
+    [ "bz2:1", "esp:GND.1", "green", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
