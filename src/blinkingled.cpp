@@ -5,7 +5,7 @@
 #define ADC_PIN 34  // Or any ADC-capable pin
 #define TABLE_SIZE 512     // Resolution of the waveform
 
-#define SAMPLE_RATE_HZ 10  // Samples per second
+#define SAMPLE_RATE_HZ 2000  // Samples per second
 
 enum WaveType { SINE, SQUARE, TRIANGLE, SAWTOOTH };
 WaveType mode = TRIANGLE;  // Change this to SQUARE or TRIANGLE
@@ -19,6 +19,10 @@ uint8_t* waveTables[4] = {sineWaveTable, squareWaveTable, triangleWaveTable, saw
 int frequency = 5;  // Set desired waveform frequency in Hz
 float amplitude = 1.0f;
 TaskHandle_t occiloscopeThread;
+BluetoothSerial btSerial;
+const int batchSize = 2000;
+int buffer[batchSize];
+int currentIndex = 0;
 
 void generateWaveform(WaveType type) {
     for (int i = 0; i < TABLE_SIZE; i++) {
@@ -35,28 +39,37 @@ void generateWaveform(WaveType type) {
   }
 
 void occiloscopeThread_fn( void * parameter) {
-    Serial.print("occiloscopeThread_fn() running on core ");
-    Serial.println(xPortGetCoreID());
+    // Serial.print("occiloscopeThread_fn() running on core ");
+    // Serial.println(xPortGetCoreID());
     unsigned long lastSampleTime = 0;
     analogReadResolution(12);  // Optional: ESP32 ADC has 12-bit resolution (0-4095)
-    BluetoothSerial btSerial;
-    btSerial.begin("ESP32_Oscilloscope");
+
     for(;;) {
+       
         unsigned long now = micros();
         if (now - lastSampleTime >= (1000000 / SAMPLE_RATE_HZ)) {
             lastSampleTime = now;
       
             int adcValue = analogRead(ADC_PIN);  // Read voltage
-            btSerial.println(adcValue);          // Send over Bluetooth
+            buffer[currentIndex++] = adcValue;
+             if (currentIndex >= batchSize) {
+                // Send buffer as space-separated values
+                for (int i = 0; i < batchSize; i++) {
+                    btSerial.print(buffer[i]);
+                    btSerial.print(' ');
+                }
+                btSerial.println(); // Terminator
+                currentIndex = 0;
+            }
         }
     }
-    Serial.print("occiloscopeThread_fn() Shutting down");
 }
 
 void setup() {
-    Serial.begin(9600);
-    Serial.print("setup() running on core ");
-    Serial.println(xPortGetCoreID());
+    // Serial.begin(9600);
+    // Serial.print("setup() running on core ");
+    // Serial.println(xPortGetCoreID());
+    btSerial.begin("ESP32_Oscilloscope");
     generateWaveform(mode);
 
     //Create task for occiloscope
@@ -79,17 +92,16 @@ void loop() {
     int delayPerSample = 1000000 / (frequency * TABLE_SIZE);  // µs per sample
     delayMicroseconds(delayPerSample);
 
-    if (Serial.available()) {
-        char c = Serial.read();
+    if (btSerial.available()) {
+        char c = btSerial.read();
         if (c >= '0' && c <= '3') {
           mode = (WaveType)(c - '0');
-          Serial.print("Waveform changed to: ");
-          switch (mode) {
-            case SINE: Serial.println("SINE"); break;
-            case SQUARE: Serial.println("SQUARE"); break;
-            case TRIANGLE: Serial.println("TRIANGLE"); break;
-            case SAWTOOTH: Serial.println("SAWTOOTH"); break;
-          }
+        //   switch (mode) {
+        //     case SINE: Serial.println("SINE"); break;
+        //     case SQUARE: Serial.println("SQUARE"); break;
+        //     case TRIANGLE: Serial.println("TRIANGLE"); break;
+        //     case SAWTOOTH: Serial.println("SAWTOOTH"); break;
+        //   }
         }
 
         if (c >= '4' && c <= '9') {
@@ -110,11 +122,7 @@ void loop() {
 
             if(amplitude <= 0.0f) amplitude = 0.0f;
             else if (amplitude >= 1.0f) amplitude = 1.0f;
-            Serial.print("Frequency changed to: ");
-            Serial.println(frequency);
 
-            Serial.print("Amplitude changed to: ");
-            Serial.println(amplitude);
         }
     }
 }
